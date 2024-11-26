@@ -53,7 +53,7 @@ console.log(TransactionJson);
         .map(node => ({
           id: node.attrs?.id || "",
           type: node.type,
-          text: node.content?.map(textNode => textNode.text).join("") || "",
+          text: node.content?.map(textNode => textNode.text).join(" ") || "",
         }));
 
       if (elements && elements.length > 0) {
