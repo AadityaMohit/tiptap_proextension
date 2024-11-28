@@ -2,25 +2,60 @@ import React, { useEffect, useState } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import UniqueID from "@tiptap-pro/extension-unique-id";
-import { initializeApp } from "firebase/app";
-import { getFirestore, doc, setDoc, getDoc,onSnapshot } from "firebase/firestore";
+import { doc, setDoc, getDoc, onSnapshot } from "firebase/firestore";
+import { db } from "./firebaseConfig";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyDp7ghSyKhc2u_MN-iLtZRBn17-zinl_24",
-  authDomain: "testexperiments-8356a.firebaseapp.com",
-  projectId: "testexperiments-8356a",
-  storageBucket: "testexperiments-8356a.firebasestorage.app",
-  messagingSenderId: "833978223157",
-  appId: "1:833978223157:web:a79f5f8dad9c37fb703f7c",
-  measurementId: "G-DP4268BVCY",
+ const debounce = (func, delay) => {
+  let timeout;
+  return (...args) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), delay);
+  };
 };
-
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
 
 function App() {
   const [savedNotes, setSavedNotes] = useState([]);
+  const [editorContent, setEditorContent] = useState("");   
 
+ 
+  const saveContentToFirebase = async (content) => {
+    try {
+      const docRef = doc(db, "notes", "tiptapNotes");
+
+      const docSnap = await getDoc(docRef);
+      let existingIds = [];
+      if (docSnap.exists()) {
+        existingIds = docSnap.data().ids || [];
+      }
+
+      const updates = {};
+      const newIds = [];
+
+      content.forEach((item) => {
+        updates[item.id] = item.text;
+        newIds.push(item.id);
+      });
+
+      const mergedIds = Array.from(new Set([...existingIds, ...newIds]));
+
+      await setDoc(
+        docRef,
+        {
+          ...updates,
+          ids: mergedIds,
+        },
+        { merge: true }
+      );
+
+      console.log("Content and IDs saved successfully!");
+    } catch (error) {
+      console.error("Error saving content to Firebase:", error);
+    }
+  };
+
+ 
+  const saveContentDebounced = debounce(saveContentToFirebase, 500);
+ 
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -28,7 +63,7 @@ function App() {
         types: ["heading", "paragraph"],
       }),
     ],
-    content: "",
+    content: editorContent,
     onUpdate: ({ editor }) => {
       const updatedContent = editor.getJSON().content;
       const elements = updatedContent
@@ -39,61 +74,26 @@ function App() {
         }));
 
       if (elements && elements.length > 0) {
-        saveContentToFirebase(elements);
+        saveContentDebounced(elements);
       }
+ 
+      setEditorContent(editor.getJSON().content);
     },
   });
-
-  const saveContentToFirebase = async (content) => {
-    try {
-      const docRef = doc(db, "notes", "tiptapNotes");
-  
-      // Fetch existing data to preserve the `ids` array
-      const docSnap = await getDoc(docRef);
-      let existingIds = [];
-      if (docSnap.exists()) {
-        existingIds = docSnap.data().ids || [];
-      }
-  
-      const updates = {};
-      const newIds = [];
-  
-      content.forEach((item) => {
-        updates[item.id] = item.text;
-        newIds.push(item.id);
-      });
-  
-      // Merge new IDs with existing IDs
-      const mergedIds = Array.from(new Set([...existingIds, ...newIds]));
-  
-      await setDoc(
-        docRef,
-        {
-          ...updates,
-          ids: mergedIds,
-        },
-        { merge: true }
-      );
-  
-      console.log("Content and IDs saved successfully!");
-    } catch (error) {
-      console.error("Error saving content to Firebase:", error);
-    }
-  };
-  
+ 
   useEffect(() => {
     const docRef = doc(db, "notes", "tiptapNotes");
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         const ids = data.ids || [];
- 
         const notesArray = ids.map((id) => ({
-          id,
-          text: data[id] || "", 
+          id,  
+          text: data[id] || "",  
         }));
-
-        setSavedNotes(notesArray); 
+        
+        setSavedNotes(notesArray);  
+        
       } else {
         setSavedNotes([]);
         console.log("No notes found.");
@@ -103,22 +103,39 @@ function App() {
     return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (editor && savedNotes.length > 0) {
+      const newContent = savedNotes.map((note) => ({
+        type: "paragraph",
+        attrs: { id: note.id },
+        content: [
+          {
+            type: "text",
+            text: note.text,
+          },
+        ],
+      }));
+  
+      // Extract the IDs currently in the editor
+      const currentContent = editor.getJSON().content || [];
+      const currentIds = new Set(
+        currentContent.map((item) => item.attrs?.id).filter((id) => id)
+      );
+  
+      // Check for differences and only insert new content
+      newContent.forEach((note) => {
+        if (!currentIds.has(note.attrs.id)) {
+          editor.commands.insertContentAt(0, note);
+        }
+      });
+    }
+  }, [savedNotes, editor]);
+  
   return (
     <div>
       <h1>Pro-Extension TipTap Editor</h1>
-
-       <EditorContent editor={editor} />
-
-       <h2>Saved Notes</h2>
-      <ul>
-        {savedNotes.map((note, index) => (
-          <li key={note.id}>
-            <strong>Sequence:</strong> {index + 1} <br />
-            <strong>ID:</strong> {note.id} <br />
-            <strong>Text:</strong> {note.text}
-          </li>
-        ))}
-      </ul>
+      <EditorContent editor={editor} />
+ 
     </div>
   );
 }
