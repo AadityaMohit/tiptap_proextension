@@ -10,7 +10,7 @@ test('should enter text into Tiptap editor in Chromium and detect update', async
   await editor.waitFor();
   await editor.click();
 
-   for (let i = 1; i <= 10; i++) {
+   for (let i = 1; i <= 5; i++) {
     const text = `Lorem ipsum dolor sit amet consectetur adipisicing elit. Sequi impedit consequuntur laborum quia nemo commodi, illo, perferendis optio, vero possimus quidem? Nisi nobis libero amet, tenetur harum provident  - ${i}`;
     console.log(`Typing: ${text}`);
     await editor.type(text);

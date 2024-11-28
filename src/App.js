@@ -37,7 +37,8 @@ function App() {
       });
 
       const mergedIds = Array.from(new Set([...existingIds, ...newIds]));
-
+console.log(...existingIds);
+console.log(...newIds);
       await setDoc(
         docRef,
         {
@@ -116,14 +117,12 @@ function App() {
         ],
       }));
   
-      // Extract the IDs currently in the editor
-      const currentContent = editor.getJSON().content || [];
+       const currentContent = editor.getJSON().content || [];
       const currentIds = new Set(
         currentContent.map((item) => item.attrs?.id).filter((id) => id)
       );
   
-      // Check for differences and only insert new content
-      newContent.forEach((note) => {
+       newContent.forEach((note) => {
         if (!currentIds.has(note.attrs.id)) {
           editor.commands.insertContentAt(0, note);
         }
